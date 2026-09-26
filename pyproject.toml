@@ -6,7 +6,28 @@ build-backend = "setuptools.build_meta"
 name = "state-machine"
 version = "0.1.0"
 description = "A reusable state machine library"
+readme = "README.md"
 requires-python = ">=3.12"
+license = "MPL-2.0"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Donovan Ramirez" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.urls]
+Repository = "https://github.com/DonovanRamirez/state-machine-py"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+state_machine = ["py.typed"]

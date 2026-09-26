@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 from ._condition import Condition
 from typing import (
     List,
@@ -39,12 +43,15 @@ class StateMachine:
 
     def __validate_name(self, name: str) -> None:
         if not isinstance(name, str):
-            raise ValueError(f"`name` must be str, but got {type(name)}")
+            raise TypeError(f"`name` must be str, but got {type(name)}")
+        
+        if len(name) == 0:
+            raise ValueError(f"`name` cannot be empty")
     
 
     def __validate_state(self, state: State) -> None:
         '''
-        Raise a error if `state` is not a State class
+        Raise an error if `state` is not a State class
         '''
         if not isinstance(state, State):
             raise ExpectedStateError(f"`state` must be State, but got {type(state)}")
@@ -52,7 +59,7 @@ class StateMachine:
     
     def __validate_condition(self, condition: Condition) -> None:
         '''
-        Raise a error if `condition` is not a Condition class
+        Raise an error if `condition` is not a Condition class
         '''
         if not isinstance(condition, Condition):
             raise ExpectedConditionError(f"`condition` must be Condition, but got {type(condition)}")
@@ -60,17 +67,17 @@ class StateMachine:
 
     def __validate_new_state(self, state: State) -> None:
         '''
-        Raise a error if `state` already exist
+        Raise an error if `state` already exists
         '''
         self.__validate_state(state)
 
         if self.__has_state(state):
-            raise StateAlreadyExistsError(f"{state} already exist in StateMachine")
+            raise StateAlreadyExistsError(f"{state} already exists in StateMachine")
 
     
     def __validate_existing_state(self, state: State) -> None:
         '''
-        Raise a error if `state` does not exist
+        Raise an error if `state` does not exist
         '''
         self.__validate_state(state)
 
@@ -80,19 +87,19 @@ class StateMachine:
     
     def __validate_new_transition(self, from_state: State, condition: Condition) -> None:
         '''
-        Raise a error if `trasition` already exist
+        Raise an error if the transition already exists
         '''
         if self.__has_transition(from_state, condition):
             raise \
                 TransitionAlreadyExistsError(
                     f"Transition from {from_state} with "
-                    f"condition {condition} already exist"
+                    f"condition {condition} already exists"
                 )
 
     
     def __validate_existing_transition(self, from_state: State, condition: Condition) -> None:
         '''
-        Raise a error if `trasition` does not exist
+        Raise an error if the transition does not exist
         '''
         if not self.__has_transition(from_state, condition):
             raise \
@@ -104,7 +111,7 @@ class StateMachine:
     
     def __validate_new_initial_state(self) -> None:
         '''
-        Raise a error if `initial_state` has already been set
+        Raise an error if `initial_state` has already been set
         '''
         if self.__has_initial_state():
             raise InitialStateAlreadySetError(
@@ -114,7 +121,7 @@ class StateMachine:
 
     def __validate_existing_initial_state(self) -> None:
         '''
-        Raise a error if `initial_state` has not been set
+        Raise an error if `initial_state` has not been set
         '''
         if not self.__has_initial_state():
             raise InitialStateNotSetError(
@@ -171,18 +178,76 @@ class StateMachine:
         
 
     def add_state(self, state: State) -> None:
+        """
+        Add a State to StateMachine.
+
+        Parameters
+        ----------
+        state : State
+            State to add
+
+        Raises
+        ------
+        ExpectedStateError:
+            Object is not State
+
+        StateAlreadyExistsError:
+            State already exists in StateMachine
+        """
         self.__validate_new_state(state)
 
         self.__transitions[state] = {}
 
     
     def remove_state(self, state: State) -> None:
+        """
+        Remove a State from StateMachine and all its transitions.
+
+        Parameters
+        ----------
+        state : State
+            State to remove
+
+        Raises
+        ------
+        ExpectedStateError:
+            Object is not State
+
+        StateNotFoundError:
+            State does not exist in StateMachine
+        """
         self.__validate_existing_state(state)
 
         del self.__transitions[state]
 
 
     def add_transition(self, from_state: State, to_state: State, condition: Condition) -> None:
+        """
+        Create a transition between `from_state` and `to_state` with the condition `condition`.
+
+        Parameters
+        ----------
+        from_state : State
+            State to start transition.
+        to_state : State
+            State to end transition.
+        condition : Condition
+            The condition to make the transition.
+
+        Raises
+        ------
+        ExpectedStateError:
+            Object is not State
+
+        StateNotFoundError:
+            State does not exist in StateMachine
+
+        ExpectedConditionError:
+            Object is not Condition
+
+        TransitionAlreadyExistsError:
+            Transition already exists in StateMachine
+        """
         self.__validate_existing_state(from_state)
         self.__validate_existing_state(to_state)
         self.__validate_condition(condition)
@@ -192,6 +257,30 @@ class StateMachine:
 
     
     def remove_transition(self, from_state: State, condition: Condition) -> None:
+        """
+        Remove a transition from StateMachine
+
+        Parameters
+        ----------
+        from_state : State
+            State to start transition.
+        condition : Condition
+            The condition to make the transition.
+
+        Raises
+        ------
+        ExpectedStateError:
+            Object is not State
+
+        StateNotFoundError:
+            State does not exist in StateMachine
+
+        ExpectedConditionError:
+            Object is not Condition
+
+        TransitionNotFoundError:
+            Transition does not exist in StateMachine
+        """
         self.__validate_existing_state(from_state)
         self.__validate_condition(condition)
         self.__validate_existing_transition(from_state, condition)
@@ -200,6 +289,25 @@ class StateMachine:
     
 
     def set_initial_state(self, state: State) -> None:
+        """
+        Set initial state in StateMachine.
+
+        Parameters
+        ----------
+        state : State
+            State to be initial.
+
+        Raises
+        ------
+        ExpectedStateError:
+            Object is not State
+
+        StateNotFoundError:
+            State does not exist in StateMachine
+
+        InitialStateAlreadySetError:
+            `initial_state` already set
+        """
         self.__validate_existing_state(state)
         self.__validate_new_initial_state()
 
@@ -208,6 +316,22 @@ class StateMachine:
 
 
     def move(self, condition: Condition) -> None:
+        """
+        Move the `current_state` using condition.
+
+        Parameters
+        ----------
+        condition : Condition
+            Condition to move.
+
+        Raises
+        ------
+        ExpectedConditionError:
+            Object is not Condition
+        
+        TransitionNotFoundError:
+            Transition does not exist in StateMachine
+        """
         self.__validate_condition(condition)
         self.__validate_existing_transition(self.current_state, condition)
 
@@ -215,28 +339,146 @@ class StateMachine:
 
 
     def get_state(self, name: str) -> State | None:
+        """
+        Get State by a name.
+
+        Parameters
+        ----------
+        name : str
+            Name to search.
+
+        Returns
+        -------
+        State | None
+            - State: if found a State with the name
+            - None: if not exists
+
+        Raises
+        ------
+        TypeError:
+            Name is not str
+
+        ValueError:
+            Name can not be empty
+        """
         self.__validate_name(name)
         return self.__search_state(name)
 
 
     def get_condition(self, name: str) -> Condition | None:
+        """
+        Get Condition by a name.
+
+        Parameters
+        ----------
+        name : str
+            Name to search.
+
+        Returns
+        -------
+        Condition | None
+            - Condition: if found a Condition with the name
+            - None: if not exists
+
+        Raises
+        ------
+        TypeError:
+            Name is not str
+
+        ValueError:
+            Name can not be empty
+        """
         self.__validate_name(name)
         return self.__search_condition(name)
     
 
     def has_state(self, name: str) -> bool:
+        """
+        Check if a State with name `name` exists.
+
+        Parameters
+        ----------
+        name : str
+            Name to search.
+
+        Returns
+        -------
+        bool
+            - True: if found a State with the name
+            - False: if not exists
+
+        Raises
+        ------
+        TypeError:
+            Name is not str
+
+        ValueError:
+            Name can not be empty
+        """
         self.__validate_name(name)
         return self.__search_state(name) is not None
 
 
     def has_condition(self, name: str) -> bool:
+        """
+        Check if a Condition with name `name` exists.
+
+        Parameters
+        ----------
+        name : str
+            Name to search.
+
+        Returns
+        -------
+        bool
+            - True: if found a Condition with the name
+            - False: if not exists
+
+        Raises
+        ------
+        TypeError:
+            Name is not str
+
+        ValueError:
+            Name can not be empty
+        """
         self.__validate_name(name)
         return self.__search_condition(name) is not None
 
     
     def has_transition(self, state: State, condition: Condition) -> bool:
+        """
+        Check if exist a transition from `state` with `condition`.
+
+        Parameters
+        ----------
+        state : State
+            State to check
+
+        condition : Condition
+            Condition to check
+
+        Returns
+        -------
+        bool
+            - True: if found a transition
+            - False: if not exists
+
+        Raises
+        ------
+        ExpectedStateError:
+            Object is not State
+
+        StateNotFoundError:
+            State does not exist in StateMachine
+
+        ExpectedConditionError:
+            Object is not Condition
+        """
         try:
+            self.__validate_existing_state(state)
+            self.__validate_condition(condition)
             self.__validate_existing_transition(state, condition)
             return True
-        except TransitionNotFoundError as e:
+        except TransitionNotFoundError:
             return False
