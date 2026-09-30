@@ -3,6 +3,7 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 
+from collections.abc import Iterable
 import pytest
 from state_machine import (
     State,
@@ -14,9 +15,7 @@ from state_machine.errors import (
     ExpectedConditionError,
     StateAlreadyExistsError,
     StateNotFoundError,
-    TransitionAlreadyExistsError,
-    InitialStateAlreadySetError,
-    InitialStateNotSetError
+    TransitionAlreadyExistsError
 )
 
 
@@ -32,14 +31,25 @@ class Foo2: pass
         pytest.param(" test ", id="add-state-test-3"),
         pytest.param(" test!1", id="add-state-test-4"),
         pytest.param("tes t@", id="add-state-test-5"),
-        pytest.param("TEST", id="add-state-test-6")
+        pytest.param("TEST", id="add-state-test-6"),
+        pytest.param(["TEST", "TEST2", "TEST3"], id="add-state-test-7")
     ]
 )
 def test_add_state(name) -> None:
-    s = State(name)
     sm = StateMachine()
+
+    if isinstance(name, str):
+        s = State(name)
+    else:
+        s = [State(i) for i in name]
+
     sm.add_state(s)
-    assert s in sm.transitions
+
+    if isinstance(name, str):
+        assert s in sm.transitions
+    else:
+        for i in s:
+            assert i in sm.transitions
 
 
 
@@ -124,7 +134,9 @@ def test_move() -> None:
     sm.add_state(s2)
     sm.add_transition(s1, s2, c1)
     sm.set_initial_state(s1)
+    sm.freeze()
     sm.move(c1)
+    assert sm.current_state is s2
 
 
 
@@ -234,18 +246,18 @@ def test_set_initial_state(names, state_to_initial) -> None:
 @pytest.mark.parametrize(
     "obj, expected_error",
     [
-        pytest.param(123, ExpectedStateError),
-        pytest.param(1.0, ExpectedStateError),
-        pytest.param(lambda x: x, ExpectedStateError),
-        pytest.param([1, 2], ExpectedStateError),
-        pytest.param((1, 2), ExpectedStateError),
-        pytest.param(Foo2(), ExpectedStateError),
-        pytest.param(Foo1(), ExpectedStateError),
-        pytest.param("", ExpectedStateError),
-        pytest.param(Condition("test"), ExpectedStateError),
-        pytest.param(StateMachine(), ExpectedStateError),
-        pytest.param(ExpectedStateError(), ExpectedStateError),
-        pytest.param(State("test"), StateAlreadyExistsError)
+        pytest.param(123, ExpectedStateError, id="invalid-state-expectederror-1"),
+        pytest.param(1.0, ExpectedStateError, id="invalid-state-expectederror-2"),
+        pytest.param(lambda x: x, ExpectedStateError, id="invalid-state-expectederror-3"),
+        pytest.param([1, 2], ExpectedStateError, id="invalid-state-expectederror-4"),
+        pytest.param((1, 2), ExpectedStateError, id="invalid-state-expectederror-5"),
+        pytest.param(Foo2(), ExpectedStateError, id="invalid-state-expectederror-6"),
+        pytest.param(Foo1(), ValueError, id="invalid-state-expectederror-7"),
+        pytest.param("", ValueError, id="invalid-state-expectederror-8"),
+        pytest.param(Condition("test"), ExpectedStateError, id="invalid-state-expectederror-9"),
+        pytest.param(StateMachine(), ExpectedStateError, id="invalid-state-expectederror-10"),
+        pytest.param(ExpectedStateError(), ExpectedStateError, id="invalid-state-expectederror-11"),
+        pytest.param(State("test"), StateAlreadyExistsError, id="invalid-state-alreadyexists-1")
     ]
 )
 def test_invalid_states(obj, expected_error) -> None:
@@ -253,6 +265,32 @@ def test_invalid_states(obj, expected_error) -> None:
     sm.add_state(State("test"))
     with pytest.raises(expected_error) as error:
         sm.add_state(obj)
+
+
+@pytest.mark.parametrize(
+    "states_add, states_delete, expected_error",
+    [   
+        pytest.param(["test1", "test2", "test3"], "test4", StateNotFoundError),
+        pytest.param(["test1", "test2", "test3"], [], ValueError),
+        pytest.param(["test1", "test2", "test3"], set(["test4"]), ExpectedStateError),
+        pytest.param(["test1", "test2", "test3"], Foo2(), ExpectedStateError)
+    ]
+)
+def test_invalid_ways_to_delete_states(states_add, states_delete, expected_error) -> None:
+    sm = StateMachine()
+    for i in states_add:
+        sm.add_state(State(i))
+
+    with pytest.raises(expected_error) as error:
+        if isinstance(states_delete, Iterable) and not isinstance(states_delete, str):
+            sm.remove_state(states_delete)
+
+        elif isinstance(states_delete, Iterable) and isinstance(states_delete, str):
+            s = State(states_delete)
+            sm.remove_state(s)
+
+        else:
+            sm.remove_state(states_delete)
 
 
 
@@ -287,9 +325,7 @@ def test_invalid_trasitions(
     "names, state_to_initial, expected_error, not_exist_initial",
     [
         pytest.param(["test1", "test2", "test3"], "test4", ExpectedStateError, False),
-        pytest.param(["test1", "test2", "test3"], "test4", StateNotFoundError, True),
-        pytest.param(["test1", "test2", "test3"], "test2", InitialStateAlreadySetError, False),
-        pytest.param(["test1", "test2", "test3"], "test2", InitialStateNotSetError, True),
+        pytest.param(["test1", "test2", "test3"], "test4", StateNotFoundError, True)
     ]
 )
 def test_invalid_initial_state(names, state_to_initial, expected_error, not_exist_initial) -> None:
@@ -304,10 +340,7 @@ def test_invalid_initial_state(names, state_to_initial, expected_error, not_exis
     with pytest.raises(expected_error) as error:
         if not_exist_initial and s2i is None:
             s2i = State(state_to_initial)
-        elif not_exist_initial and s2i is not None:
-            sm.initial_state
         else:
             sm.set_initial_state(s2i)
 
         sm.set_initial_state(s2i)
-

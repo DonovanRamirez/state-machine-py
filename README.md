@@ -1,6 +1,6 @@
 # state-machine-py
 
-Clasic state machine for python
+Classic state machine for Python
 
 ## Installation
 
@@ -97,7 +97,7 @@ sm.add_state(s2)
 ```python
 StateMachine.add_state(state)
 ```
-- `state` (`State`): State to add.
+- `state` (`State` | `Collection[State]`): State to add.
 
 #### **Set initial state**
 
@@ -115,13 +115,47 @@ sm.add_state(s2)
 sm.set_initial_state(s1)
 print(sm)
 
-State('s1')*
+[Initial] State('s1')
 State('s2')
 ```
+**Parameters**
+
+```python
+StateMachine.set_initial_state(state)
+```
+- `state` (`State`): State to be Initial.
+
+#### **Set final state**
+
+**Example**
+
+```python
+from state_machine import StateMachine, State
+
+sm = StateMachine()
+s1 = State("state1")
+s2 = State("state2")
+
+sm.add_state(s1)
+sm.add_state(s2)
+sm.set_initial_state(s1)
+sm.set_final_state(s1)
+print(sm)
+
+[Initial] State('s1')
+[Final] State('s2')
+```
+
+**Parameters**
+
+```python
+StateMachine.set_final_state(state)
+```
+- `state` (`State` | `Collection[State]`): State to be Final.
 
 #### **Defining a transition**
 
-To create a transition between 2 states requieres a `Condition` object. 
+To create a transition between 2 states requires a `Condition` object. 
 
 **Example**
 
@@ -169,25 +203,31 @@ from state_machine import StateMachine, State, Condition
 sm = StateMachine()
 s1 = State("state1")
 s2 = State("state2")
+s3 = State("state3")
 c1 = Condition("condition1")
+c2 = Condition("condition2")
 
-sm.add_state(s1)
-sm.add_state(s2)
+sm.add_state([s1, s2, s3])
 sm.set_initial_state(s1)
+sm.set_final_state([s2, s3])
 sm.add_transition(s1, s2, c1)
+sm.add_transition(s1, s3, c2)
+sm.freeze()
 print(sm)
 ```
 ```
-State('state1')*
- ├─Condition('condition1') ─> State('s2')
-State('state2')
+[Initial, Current] State('state1')
+ ├─Condition('condition1') ─> State('state2')
+ ├─Condition('condition2') ─> State('state3')
+[Final] State('state2')
+[Final] State('state3')
 ```
 > [!WARNING]
 > To print the StateMachine, `initial_state` must be set first.
 
 #### **Move to next state**
 
-The `move` method attempts to transition the `StateMachine` from `current_state` to another, using the matching `Condition`.
+The `move` method attempts to transition the `StateMachine` from `current_state` to another, using the matching `Condition`. To use `move`, you first need to call `StateMachine.freeze`.
 
 **Example**
 
@@ -203,15 +243,24 @@ sm.add_state(s1)
 sm.add_state(s2)
 sm.set_initial_state(s1)
 sm.add_transition(s1, s2, c1)
-
+sm.freeze()
+print(sm)
 sm.move(c1)
 print(sm)
 ```
 ```
-State('state1')
-├─Condition('condition1') ─> State('state2')
-State('state2')*
+# previous to move
+[Initial, Current] State('state1')
+ ├─Condition('condition1') ─> State('state2')
+State('state2')
 ```
+```
+# moved
+[Initial] State('state1')
+ ├─Condition('condition1') ─> State('state2')
+[Current] State('state2')
+```
+
 **Parameters**
 
 ```python
@@ -243,10 +292,13 @@ except ExpectedStateError as error:
 |`ExpectedConditionError`| Get an object that is not a `Condition`|
 |`StateAlreadyExistsError`| Attempting to add a `State` that already exists|
 |`StateNotFoundError`| The `State` not exist in the machine|
-|`InitialStateAlreadySetError`| Attempting to set `initial_state`, but it already exists|
 |`TransitionAlreadyExistsError`| Attempting to create a transition, but it already exists|
 |`TransitionNotFoundError`| The `Condition` not exist in the machine|
 |`InitialStateNotSetError`| Attempting to call `initial_state`, but has not yet been set|
+|`FinalStateNotFoundError`| `StateMachine.requires_final_state` is True and tries to call `final_state`|
+|`StateMachineFrozenError`| Attempting to modify `StateMachine` while is frozen|
+|`StateMachineNotFrozenError`| Attempting to execute or test `StateMachine` while is not frozen|
+
 
 ## Testing
 
@@ -258,7 +310,7 @@ Install the development dependencies and run the test suite:
 git clone https://github.com/DonovanRamirez/state-machine-py.git
 cd state-machine-py
 python -m pip install -e .
-pytest
+python -m pytest
 ```
 
 ## Contributing

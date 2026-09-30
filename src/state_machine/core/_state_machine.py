@@ -5,7 +5,9 @@
 from ._condition import Condition
 from typing import (
     List,
-    Dict
+    Dict,
+    Collection,
+    Any
 )
 from . import (State, Condition)
 from ..errors import (
@@ -13,10 +15,12 @@ from ..errors import (
     ExpectedConditionError,
     StateAlreadyExistsError,
     StateNotFoundError,
-    InitialStateAlreadySetError,
     TransitionAlreadyExistsError,
     TransitionNotFoundError,
-    InitialStateNotSetError
+    InitialStateNotSetError,
+    StateMachineFrozenError,
+    StateMachineNotFrozenError,
+    FinalStateNotFoundError
 )
 
 
@@ -25,15 +29,39 @@ class StateMachine:
     def __init__(self) -> None:
         self.__transitions = {}
         self.__initial_state: State | None = None
+        self.__final_state: set[State] = set()
         self.__current_state: State | None = None
+        self.__is_frozen = False
+        self.__requieres_final_state = False
 
     
     def __str__(self) -> str:
         output = ""
         for s in self.transitions:
-            output += f"{s}" + ("*\n" if s is self.current_state else "\n")
+            row = f"{s}"
+            info = []
+            if s is self.initial_state:
+                info.append("Initial")
+
+            if s in self.final_state:
+                info.append("Final")
+
+            if s is self.current_state:
+                info.append("Current")
+
+            if info:
+                row = f"[{', '.join(info)}] {row}"
+
+            row += "\n"
+
             for c in self.transitions[s]:
-                output += f" ├─{c} ─> {self.transitions[s][c]}\n"
+                row += f" ├─{c} ─> {self.transitions[s][c]}\n"
+            
+            output += row
+
+        if self.current_state is None:
+            output += "StateMachine NOT STARTED"
+
         return output
 
     
@@ -63,6 +91,24 @@ class StateMachine:
         '''
         if not isinstance(condition, Condition):
             raise ExpectedConditionError(f"`condition` must be Condition, but got {type(condition)}")
+
+    
+    def __validate_collection(self, collec_objt: Collection[Any]) -> None:
+        '''
+        Raise an error if objecto is not a Collection type
+        '''
+        if not isinstance(collec_objt, Collection):
+            raise TypeError(f"Object must be a `Collection`, but got {type(collec_objt)}")
+    
+
+    def __validate_empty_collection(self, collec_obj: Collection[Any]) -> None:
+        '''
+        Raise an error if collection is empty
+        '''
+        self.__validate_collection(collec_obj)
+
+        if len(collec_obj) == 0:
+            raise ValueError(f"Collection ({type(collec_obj).__name__}) cannot be empty")
 
 
     def __validate_new_state(self, state: State) -> None:
@@ -108,16 +154,6 @@ class StateMachine:
                 f"{condition} does not exist in StateMachine"
             )
 
-    
-    def __validate_new_initial_state(self) -> None:
-        '''
-        Raise an error if `initial_state` has already been set
-        '''
-        if self.__has_initial_state():
-            raise InitialStateAlreadySetError(
-                "`initial_state` has already been set"
-            )
-
 
     def __validate_existing_initial_state(self) -> None:
         '''
@@ -128,6 +164,36 @@ class StateMachine:
                 "`initial_state` has not been set"
             )
 
+    
+    def __validate_is_frozen(self) -> None:
+        '''
+        Raise an error if `StateMachine` is frozen.
+        '''
+        if self.__is_frozen:
+            raise StateMachineFrozenError(
+                "`StateMachine` is frozen, you can not modify `StateMachine` while is frozen. \
+                Use `StateMachine.reset()` to unfrozen `StateMachine"
+            )
+    
+
+    def __validate_is_not_frozen(self) -> None:
+        '''
+        Raise an error if `StateMachine` is not frozen
+        '''
+        if not self.__is_frozen:
+            raise StateMachineNotFrozenError(
+                "`StateMachine` is not frozen, you can not execute `StateMachine` while is not frozen. \
+                Use `StateMachine.freeze()` to execute `StateMachine`"
+            )
+
+    
+    def __validate_is_requiered_final_state(self) -> None:
+        '''
+        Raise an error if `requieres_final_state` is True and lenght of `final_state`is 0
+        '''
+        if self.__requieres_final_state and len(self.final_state()):
+            raise FinalStateNotFoundError("`final_state` not found in `StateMachine`")
+        
 
     def __has_state(self, state: State) -> bool:
         return state in self.__transitions or \
@@ -142,6 +208,10 @@ class StateMachine:
         return self.__initial_state is not None
 
 
+    def __has_current_state(self) -> bool:
+        return self.__current_state is not None
+
+
     def __search_state(self, name: str) -> State | None:
         for s in self.transitions:
             if s.name == name:
@@ -153,6 +223,10 @@ class StateMachine:
             for c in self.transitions[s]:
                 if c.name == name:
                     return c
+
+    
+    def __restart_final_state(self) -> None:
+        self.__final_state = set()
 
 
     @property
@@ -166,46 +240,81 @@ class StateMachine:
 
 
     @property
-    def initial_state(self) -> State:
-        self.__validate_existing_initial_state()
+    def initial_state(self) -> State | None:
         return self.__initial_state
 
 
     @property
+    def final_state(self) -> set[State]:
+        return self.__final_state
+
+
+    @property
     def current_state(self) -> State:
-        self.__validate_existing_initial_state()
         return self.__current_state
+
+    
+    @property
+    def is_frozen(self) -> bool:
+        return self.__is_frozen
+
+    
+    @property
+    def requieres_final_state(self) -> bool:
+        return self.__requieres_final_state
+
+
+    @requieres_final_state.setter
+    def requieres_final_state(self, c: bool) -> None:
+        if not isinstance(c, bool):
+            raise ValueError(f"`requiereS_final_state` can only be boolean, but got {type(c)}")
+        self.__requieres_final_state = c
         
 
-    def add_state(self, state: State) -> None:
+    def add_state(self, state: State | Collection[State]) -> None:
         """
-        Add a State to StateMachine.
+        Add one or multiples States to StateMachine.
 
         Parameters
         ----------
-        state : State
+        state : State | Collection[State]
             State to add
 
         Raises
         ------
         ExpectedStateError:
-            Object is not State
+            Object to add is not State
 
-        StateAlreadyExistsError:
-            State already exists in StateMachine
+        StateMachineFrozenError:
+            Try to modify the StateMachine when it's frozen
+        
+        TypeError:
+            Object is not a Collection
+
+        ValueError:
+            Collection is empty
         """
-        self.__validate_new_state(state)
+        self.__validate_is_frozen()
 
-        self.__transitions[state] = {}
+        if not isinstance(state, Collection):
+            state = [state]
+
+        self.__validate_empty_collection(state)
+        
+        for s in state:
+            self.__validate_new_state(s)
+
+        for s in state:
+            self.__transitions[s] = {}
 
     
-    def remove_state(self, state: State) -> None:
+    def remove_state(self, state: State | Collection[State]) -> None:
         """
-        Remove a State from StateMachine and all its transitions.
+        Remove one or multiples States from StateMachine and all its transitions.
 
         Parameters
         ----------
-        state : State
+        state : State | Collection[State]
             State to remove
 
         Raises
@@ -215,10 +324,25 @@ class StateMachine:
 
         StateNotFoundError:
             State does not exist in StateMachine
-        """
-        self.__validate_existing_state(state)
 
-        del self.__transitions[state]
+        TypeError:
+            Object is not a Collection
+
+        ValueError:
+            Collection is empty
+        """
+        self.__validate_is_frozen()
+
+        if not isinstance(state, Collection):
+            state = [state]
+        
+        self.__validate_empty_collection(state)
+        
+        for s in state:
+            self.__validate_existing_state(s)
+
+        for s in state:
+            del self.__transitions[s]
 
 
     def add_transition(self, from_state: State, to_state: State, condition: Condition) -> None:
@@ -248,6 +372,7 @@ class StateMachine:
         TransitionAlreadyExistsError:
             Transition already exists in StateMachine
         """
+        self.__validate_is_frozen()
         self.__validate_existing_state(from_state)
         self.__validate_existing_state(to_state)
         self.__validate_condition(condition)
@@ -281,12 +406,13 @@ class StateMachine:
         TransitionNotFoundError:
             Transition does not exist in StateMachine
         """
+        self.__validate_is_frozen()
         self.__validate_existing_state(from_state)
         self.__validate_condition(condition)
         self.__validate_existing_transition(from_state, condition)
 
         del self.__transitions[from_state][condition]
-    
+
 
     def set_initial_state(self, state: State) -> None:
         """
@@ -305,14 +431,78 @@ class StateMachine:
         StateNotFoundError:
             State does not exist in StateMachine
 
+        StateMachineFrozenError:
+            Try to modify the StateMachine when it's frozen
+        """
+        self.__validate_is_frozen()
+        self.__validate_existing_state(state)
+
+        self.__initial_state = state
+
+    
+    def set_final_state(self, state: State | Collection[State]) -> None:
+        """
+        Set final state in StateMachine.
+
+        Parameters
+        ----------
+        state : State | Collection[State]
+            State to be final.
+
+        Raises
+        ------
+        ExpectedStateError:
+            Object is not State
+
+        StateNotFoundError:
+            State does not exist in StateMachine
+
         InitialStateAlreadySetError:
             `initial_state` already set
         """
-        self.__validate_existing_state(state)
-        self.__validate_new_initial_state()
+        self.__validate_is_frozen()
+        self.__restart_final_state()
 
-        self.__initial_state = state
-        self.__current_state = state
+        if isinstance(state, State):
+            state = [state]
+        
+        self.__validate_empty_collection(state)
+
+        for s in state:
+            self.__validate_existing_state(s)
+        
+        for s in state:
+            self.__final_state.add(s)
+
+
+    def freeze(self) -> None:
+        """
+        Freeze the `StateMachine` and make it ready to use 
+        (for example moving between states with `StateMachine.move`).
+
+        WARNING
+        -------
+        Once frozen, the `StateMachine` cannot be modified.
+        The only way to revert this is using `StateMachine.unfreeze()`
+        """
+        self.__validate_is_requiered_final_state()
+        self.__validate_existing_initial_state()
+        self.__is_frozen = True
+        self.__current_state = self.__current_state if self.__has_current_state() else self.initial_state
+
+    
+    def unfreeze(self) -> None:
+        """
+        Unfreeze `StateMachine` to make it editable (for example,
+        adding o removing states with `StateMachine.add` and
+        `StatesMachine.remove`)
+
+        WARNING
+        -------
+        Once unfrozen, the `StateMachine` cannot use to operate.
+        The only way to revert this is using `StateMachine.freeze()`
+        """
+        self.__is_frozen = False
 
 
     def move(self, condition: Condition) -> None:
@@ -332,6 +522,7 @@ class StateMachine:
         TransitionNotFoundError:
             Transition does not exist in StateMachine
         """
+        self.__validate_is_not_frozen()
         self.__validate_condition(condition)
         self.__validate_existing_transition(self.current_state, condition)
 
