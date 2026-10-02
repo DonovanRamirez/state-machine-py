@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Documented missing `Raises` entries for `freeze` and `move`.
+
 ## [0.2.0] - 2026-09-29
 
 ### Added

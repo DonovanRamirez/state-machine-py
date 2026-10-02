@@ -4,6 +4,7 @@
 
 from ._condition import Condition
 from typing import (
+    cast,
     List,
     Dict,
     Collection,
@@ -171,8 +172,8 @@ class StateMachine:
         '''
         if self.__is_frozen:
             raise StateMachineFrozenError(
-                "`StateMachine` is frozen, you can not modify `StateMachine` while is frozen. \
-                Use `StateMachine.reset()` to unfrozen `StateMachine"
+                "`StateMachine` is frozen, you cannot modify `StateMachine` while is frozen. \
+                Use `StateMachine.unfreeze()` to unfrozen `StateMachine"
             )
     
 
@@ -191,7 +192,7 @@ class StateMachine:
         '''
         Raise an error if `requieres_final_state` is True and lenght of `final_state`is 0
         '''
-        if self.__requieres_final_state and len(self.final_state()):
+        if self.__requieres_final_state and len(self.final_state):
             raise FinalStateNotFoundError("`final_state` not found in `StateMachine`")
         
 
@@ -250,7 +251,7 @@ class StateMachine:
 
 
     @property
-    def current_state(self) -> State:
+    def current_state(self) -> State | None:
         return self.__current_state
 
     
@@ -484,6 +485,14 @@ class StateMachine:
         -------
         Once frozen, the `StateMachine` cannot be modified.
         The only way to revert this is using `StateMachine.unfreeze()`
+
+        Raises
+        ------
+        FinalStateNotFoundError:
+            `final_state` not defined yet or is empty
+
+        InitialStateNotSetError:
+            `initial_state` has not been set
         """
         self.__validate_is_requiered_final_state()
         self.__validate_existing_initial_state()
@@ -521,12 +530,15 @@ class StateMachine:
         
         TransitionNotFoundError:
             Transition does not exist in StateMachine
+
+        StateMachineNotFrozenError:
+            Cannot use `.move` while StateMachine is not frozen
         """
         self.__validate_is_not_frozen()
         self.__validate_condition(condition)
-        self.__validate_existing_transition(self.current_state, condition)
+        self.__validate_existing_transition(cast(State, self.current_state), condition)
 
-        self.__current_state = self.transitions[self.current_state][condition]
+        self.__current_state = self.transitions[cast(State, self.current_state)][condition]
 
 
     def get_state(self, name: str) -> State | None:
